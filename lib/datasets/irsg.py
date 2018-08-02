@@ -3,10 +3,10 @@ import json
 import pickle as pickle
 
 import scipy
+import scipy.io as sio
 import numpy as np
 from IPython import embed
 
-import imdb
 from datasets.imdb import imdb
 from fast_rcnn.config import cfg
 
@@ -15,7 +15,7 @@ class irsg(imdb):
     def __init__(self, image_set, devkit_path=None):
         imdb.__init__(self, 'IRSG_{}'.format(image_set))
         self._image_set = image_set
-        self._devkit_path = (self._get_default_path() if devkit_path is None 
+        self._devkit_path = (self._get_default_path() if devkit_path is None
                              else devkit_path)
         self.train_image_path = os.path.join(self._devkit_path,
                                              'sg_train_images')
@@ -26,10 +26,10 @@ class irsg(imdb):
                          'bench', 'woman', 'controller', 'phone', 'skateboard',
                          'shoes', 'sign', 'pole', 'laptop', 'monitor',
                          'desk', 'sunglasses')
-        self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
-        train_anno_path = os.path.join(self._devkit_path, 
+        self._class_to_ind = dict(zip(self.classes, range(self.num_classes)))
+        train_anno_path = os.path.join(self._devkit_path,
                                        'sg_train_annotations.json')
-        test_anno_path = os.path.join(self._devkit_path, 
+        test_anno_path = os.path.join(self._devkit_path,
                                       'sg_test_annotations.json')
 
         with open(train_anno_path) as f:
@@ -111,6 +111,21 @@ class irsg(imdb):
             image_dir = self.test_image_path
             annos = self.test_annotations
         return annos, index, image_dir
+
+    def _load_selective_search_roidb(self, gt_roidb):
+        filename = os.path.abspath(os.path.join(cfg.DATA_DIR,
+                                                'selective_search_data',
+                                                self.name + '.mat'))
+        raw_data = sio.loadmat(filename)['boxes'].ravel()
+        box_list = []
+        for i in xrange(raw_data.shape[0]):
+            boxes = raw_data[i][:, (1, 0, 3, 2)] - 1
+            keep = ds_utils.unique_boxes(boxes)
+            boxes = boxes[keep, :]
+            keep = ds_utils.filter_small_boxes(boxes, self.config['min_size'])
+            boxes = boxes[keep, :]
+            box_list.append(boxes)
+        return self.create_roidb_from_box_list(box_list, gt_roidb)
 
     def _load_annotation(self, index):
         objs = self.annotations[index]['objects']
