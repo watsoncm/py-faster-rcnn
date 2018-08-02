@@ -4,26 +4,33 @@ import pickle as pickle
 
 import scipy
 import numpy as np
-
-from datasets.imdb import imdb
 from IPython import embed
+
+import imdb
+from datasets.imdb import imdb
+from fast_rcnn.config import cfg
 
 
 class irsg(imdb):
-    def __init__(self, image_set, devkit_path):
+    def __init__(self, image_set, devkit_path=None):
         imdb.__init__(self, 'IRSG_{}'.format(image_set))
         self._image_set = image_set
-        self._image_index = self._load_image_set_index()
-        self.train_image_path = os.path.join(devkit_path, 'sg_train_images')
-        self.test_image_path = os.path.join(devkit_path, 'sg_test_images')
+        self._devkit_path = (self._get_default_path() if devkit_path is None 
+                             else devkit_path)
+        self.train_image_path = os.path.join(self._devkit_path,
+                                             'sg_train_images')
+        self.test_image_path = os.path.join(self._devkit_path,
+                                            'sg_test_images')
         self._classes = ('__background__', 'man', 'helmet', 'bottle', 'table',
                          'horse', 'picture', 'wall', 'sign', 'building',
                          'bench', 'woman', 'controller', 'phone', 'skateboard',
                          'shoes', 'sign', 'pole', 'laptop', 'monitor',
                          'desk', 'sunglasses')
         self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
-        train_anno_path = os.path.join(devkit_path, 'train_annotations.json')
-        test_anno_path = os.path.join(devkit_path, 'test_annotations.json')
+        train_anno_path = os.path.join(self._devkit_path, 
+                                       'train_annotations.json')
+        test_anno_path = os.path.join(self._devkit_path, 
+                                      'test_annotations.json')
 
         with open(train_anno_path) as f:
             print('loading train annotations...')
@@ -90,6 +97,9 @@ class irsg(imdb):
         with open(filename, 'rb') as f:
             box_list = pickle.load(f)
         return self.create_roidb_from_box_list(box_list, None)
+
+    def _get_default_path(self):
+        return os.path.join(cfg.DATA_DIR, 'sg_dataset')
 
     def _index_to_data(self, index):
         num_train = len(self.train_annotations)
