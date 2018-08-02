@@ -28,9 +28,9 @@ class irsg(imdb):
                          'desk', 'sunglasses')
         self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
         train_anno_path = os.path.join(self._devkit_path, 
-                                       'train_annotations.json')
+                                       'sg_train_annotations.json')
         test_anno_path = os.path.join(self._devkit_path, 
-                                      'test_annotations.json')
+                                      'sg_test_annotations.json')
 
         with open(train_anno_path) as f:
             print('loading train annotations...')
