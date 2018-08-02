@@ -23,11 +23,17 @@ EXTRA_ARGS=${array[@]:3:$len}
 EXTRA_ARGS_SLUG=${EXTRA_ARGS// /_}
 
 case $DATASET in
+  irsg)
+    TRAIN_IMDB="irsg_train"
+    TEST_IMDB="irsg_test"
+    PT_DIR="irsg"
+    ITERS=100
+    ;;
   pascal_voc)
     TRAIN_IMDB="voc_2007_trainval"
     TEST_IMDB="voc_2007_test"
     PT_DIR="pascal_voc"
-    ITERS=250  # 70000
+    ITERS=70000
     ;;
   coco)
     # This is a very long and slow training schedule
