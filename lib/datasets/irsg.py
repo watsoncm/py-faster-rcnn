@@ -27,6 +27,7 @@ class irsg(imdb):
                          'shoes', 'sign', 'pole', 'laptop', 'monitor',
                          'desk', 'sunglasses')
         self._class_to_ind = dict(zip(self.classes, range(self.num_classes)))
+        self._roidb_handler = self.rpn_roidb
         train_anno_path = os.path.join(self._devkit_path,
                                        'sg_train_annotations.json')
         test_anno_path = os.path.join(self._devkit_path,
@@ -34,10 +35,10 @@ class irsg(imdb):
 
         with open(train_anno_path) as f:
             print('loading train annotations...')
-            self.train_annotations = json.load(f)
+            self.train_annotations = self._filter_annotations(json.load(f))
         with open(test_anno_path) as f:
             print('loading test annotations...')
-            self.test_annotations = json.load(f)
+            self.test_annotations = self._filter_annotations(json.load(f))
 
         if image_set is 'train':
             self.annotations = self.train_annotations
@@ -54,7 +55,7 @@ class irsg(imdb):
             raise ValueError(error_format.format(image_set))
 
     def image_path_at(self, i):
-        self.image_path_from_index(self._image_index[i])
+        return self.image_path_from_index(self._image_index[i])
 
     def image_path_from_index(self, index):
         annos, index, image_dir = self._index_to_data(index)
@@ -101,6 +102,13 @@ class irsg(imdb):
     def _get_default_path(self):
         return os.path.join(cfg.DATA_DIR, 'sg_dataset')
 
+    def _filter_annotations(self, annotations):
+        result = []
+        for entry in annotations:
+            entry['objects'] = [obj for obj in entry['objects']
+                                if obj['names'][0] in self._classes]
+        return annotations
+
     def _index_to_data(self, index):
         num_train = len(self.train_annotations)
         if index < num_train:
@@ -129,14 +137,22 @@ class irsg(imdb):
 
     def _load_annotation(self, index):
         objs = self.annotations[index]['objects']
+        image_size = (self.annotations[index]['width'],
+                      self.annotations[index]['height'])
         boxes = np.zeros((len(objs), 4), dtype=np.uint16)
         gt_classes = np.zeros(len(objs), dtype=np.int32)
         overlaps = np.zeros((len(objs), self.num_classes), dtype=np.float32)
         for i, obj in enumerate(objs):
-            boxes[i, :] = [obj['x'], obj['y'], obj['x'] + obj['w'],
-                           obj['y'] + obj['h']]
-            gt_classes[i] = self._class_to_ind[obj['names'][0]]
-            overlaps[i] = 1.0
+            x1 = np.clip(obj['bbox']['x'], a_min=0.0, a_max=image_size[0] - 1)
+            y1 = np.clip(obj['bbox']['y'], a_min=0.0, a_max=image_size[1] - 1)
+            x2 = np.clip(obj['bbox']['x'] + obj['bbox']['w'], 
+                         a_min=0.0, a_max=image_size[0] - 1)
+            y2 = np.clip(obj['bbox']['y'] + obj['bbox']['h'],
+                         a_min=0.0, a_max=image_size[1] - 1)
+            boxes[i, :] = [x1, y1, x2, y2]
+            obj_class = self._class_to_ind[obj['names'][0]]
+            gt_classes[i] = obj_class
+            overlaps[i, obj_class] = 1.0
 
         overlaps = scipy.sparse.csr_matrix(overlaps)
         return {'boxes': boxes,

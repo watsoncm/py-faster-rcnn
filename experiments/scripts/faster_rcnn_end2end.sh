@@ -54,7 +54,7 @@ LOG="experiments/logs/faster_rcnn_end2end_${NET}_${EXTRA_ARGS_SLUG}.txt.`date +'
 exec &> >(tee -a "$LOG")
 echo Logging output to "$LOG"
 
-time ./tools/train_net.py --gpu ${GPU_ID} \
+time python -m pdb ./tools/train_net.py --gpu ${GPU_ID} \
   --solver models/${PT_DIR}/${NET}/faster_rcnn_end2end/solver.prototxt \
   --weights data/imagenet_models/${NET}.v2.caffemodel \
   --imdb ${TRAIN_IMDB} \
