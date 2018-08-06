@@ -40,22 +40,23 @@ class irsg(imdb):
             print('loading test annotations...')
             self.test_annotations = self._filter_annotations(json.load(f))
 
+        train_size = len(self.train_annotations)
+        test_size = len(self.test_annotations)
         if image_set is 'train':
             self.annotations = self.train_annotations
             self.image_path = self.train_image_path
-            self._image_index = list(range(len(self.train_annotations)))
+            self._image_index = list(range(train_size))
         elif image_set is 'test':
             self.annotations = self.test_annotations
             self.image_path = self.test_image_path
-            self._image_index = list(range(len(self.train_annotations),
-                                           len(self.test_annotations)))
+            self._image_index = list(range(train_size, train_size + test_size))
         else:
             error_format = ('invalid image set name \'{}\': only'
                             '\'train\' and \'test\' are allowed')
             raise ValueError(error_format.format(image_set))
 
     def image_path_at(self, i):
-        return self.image_path_from_index(self._image_index[i])
+        return self.image_path_from_index(self.image_index[i])
 
     def image_path_from_index(self, index):
         annos, index, image_dir = self._index_to_data(index)
@@ -70,7 +71,7 @@ class irsg(imdb):
             return roidb
 
         gt_roidb = [self._load_annotation(index)
-                    for index in self._image_index]
+                    for index in self.image_index]
         with open(cache_file, 'wb') as fid:
             pickle.dump(gt_roidb, fid, pickle.HIGHEST_PROTOCOL)
         print('wrote gt roidb to {}'.format(cache_file))
@@ -161,12 +162,23 @@ class irsg(imdb):
                 'flipped': False}
 
     def evaluate_detections(self, all_boxes, output_dir):
-        pass
+        import pdb; pdb.set_trace()
+        for class_index, class_name in enumerate(self.classes):
+            if class_name == '__background__':
+                continue
+            print 'Writing {} results file'.format(class_name)
+            output_name = '{}_results.csv'.format(class_name)
+            output_path = os.path.join(output_dir, output_name)
+            with open(output_path, 'w') as f:
+                for image_index_index, index in enumerate(self.image_index):
+                    dets = all_boxes[class_index][image_index_index]
+                    if dets == []:
+                        continue
+                    for k in xrange(dets.shape[0]):
+                        f.write('{:s} {:.3f} {:.1f} {:.1f} {:.1f} {:.1f}\n'.
+                                format(index, dets[k, -1],
+                                       dets[k, 0] + 1, dets[k, 1] + 1,
+                                       dets[k, 2] + 1, dets[k, 3] + 1))
 
     def competition_mode(self, on):
-        pass
-
-
-if __name__ == '__main__':
-    image_db = irsg('train', None)
-    embed()
+        pass  # guess we're not competing today
