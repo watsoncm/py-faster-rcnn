@@ -24,8 +24,8 @@ EXTRA_ARGS_SLUG=${EXTRA_ARGS// /_}
 
 case $DATASET in
   irsg)
-    TRAIN_IMDB="irsg_train"
-    TEST_IMDB="irsg_test"
+    TRAIN_IMDB="irsg_train_objs"
+    TEST_IMDB="irsg_val_objs"
     PT_DIR="irsg"
     ITERS=100
     ;;

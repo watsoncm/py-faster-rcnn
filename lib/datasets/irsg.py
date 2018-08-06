@@ -12,20 +12,20 @@ from fast_rcnn.config import cfg
 
 
 class irsg(imdb):
-    def __init__(self, image_set, devkit_path=None):
-        imdb.__init__(self, 'IRSG_{}'.format(image_set))
+    def __init__(self, image_set, obj_attr_type, devkit_path=None,
+                 aux_path=None, use_attrs=False):
+        self.obj_attr_type = obj_attr_type
+        imdb.__init__(self, 'IRSG_{}_{}'.format(image_set, self.obj_attr_type))
         self._image_set = image_set
-        self._devkit_path = (self._get_default_path() if devkit_path is None
-                             else devkit_path)
+        self._devkit_path = (self._get_default_path()
+                             if devkit_path is None else devkit_path)
+        self._aux_path = (self._get_default_aux_path()
+                            if aux_path is None else aux_path)
         self.train_image_path = os.path.join(self._devkit_path,
                                              'sg_train_images')
         self.test_image_path = os.path.join(self._devkit_path,
                                             'sg_test_images')
-        self._classes = ('__background__', 'man', 'helmet', 'bottle', 'table',
-                         'horse', 'picture', 'wall', 'sign', 'building',
-                         'bench', 'woman', 'controller', 'phone', 'skateboard',
-                         'shoes', 'sign', 'pole', 'laptop', 'monitor',
-                         'desk', 'sunglasses')
+        self._classes = self._load_classes()
         self._class_to_ind = dict(zip(self.classes, range(self.num_classes)))
         self._roidb_handler = self.rpn_roidb
         train_anno_path = os.path.join(self._devkit_path,
@@ -45,11 +45,15 @@ class irsg(imdb):
         if image_set is 'train':
             self.annotations = self.train_annotations
             self.image_path = self.train_image_path
-            self._image_index = list(range(train_size))
+            self._image_index = self._get_image_index('train')
+        elif image_set is 'val':
+            self.annotations = self.train_annotations
+            self.image_path = self.train_image_path
+            self._image_index = self._get_image_index('val')
         elif image_set is 'test':
             self.annotations = self.test_annotations
             self.image_path = self.test_image_path
-            self._image_index = list(range(train_size, train_size + test_size))
+            self._image_index = self._get_image_index('test')
         else:
             error_format = ('invalid image set name \'{}\': only'
                             '\'train\' and \'test\' are allowed')
@@ -103,6 +107,14 @@ class irsg(imdb):
     def _get_default_path(self):
         return os.path.join(cfg.DATA_DIR, 'sg_dataset')
 
+    def _get_default_aux_path(self):
+        return os.path.join(cfg.DATA_DIR, 'sg_aux')
+
+    def _get_image_index(self, split):
+        split_name = os.path.join(self._aux_path, '{}.txt'.format(split))
+        with open(split_name) as f:
+            return [int(line) for line in f.read().splitlines()]
+
     def _filter_annotations(self, annotations):
         result = []
         for entry in annotations:
@@ -120,6 +132,11 @@ class irsg(imdb):
             image_dir = self.test_image_path
             annos = self.test_annotations
         return annos, index, image_dir
+
+    def _load_classes(self):
+        target_name = '{}.txt'.format(self.obj_attr_type)
+        with open(os.path.join(self._aux_path, target_name)) as f:
+            return ['__background__'] + f.read().splitlines()
 
     def _load_selective_search_roidb(self, gt_roidb):
         filename = os.path.abspath(os.path.join(cfg.DATA_DIR,
@@ -162,11 +179,10 @@ class irsg(imdb):
                 'flipped': False}
 
     def evaluate_detections(self, all_boxes, output_dir):
-        import pdb; pdb.set_trace()
         for class_index, class_name in enumerate(self.classes):
             if class_name == '__background__':
                 continue
-            print 'Writing {} results file'.format(class_name)
+            print('Writing {} results file'.format(class_name))
             output_name = '{}_results.csv'.format(class_name)
             output_path = os.path.join(output_dir, output_name)
             with open(output_path, 'w') as f:
@@ -175,10 +191,10 @@ class irsg(imdb):
                     if dets == []:
                         continue
                     for k in xrange(dets.shape[0]):
-                        f.write('{:s} {:.3f} {:.1f} {:.1f} {:.1f} {:.1f}\n'.
+                        f.write('{} {:.6f} {:.1f} {:.1f} {:.1f} {:.1f}\n'.
                                 format(index, dets[k, -1],
-                                       dets[k, 0] + 1, dets[k, 1] + 1,
-                                       dets[k, 2] + 1, dets[k, 3] + 1))
+                                       dets[k, 0], dets[k, 1],
+                                       dets[k, 2], dets[k, 3]))
 
     def competition_mode(self, on):
         pass  # guess we're not competing today

@@ -32,9 +32,10 @@ for year in ['2015']:
         name = 'coco_{}_{}'.format(year, split)
         __sets[name] = (lambda split=split, year=year: coco(split, year))
 
-for split in ['train', 'test']:
-    name = 'irsg_{}'.format(split)
-    __sets[name] = (lambda split=split: irsg(split))
+for split in ['train', 'val', 'test']:
+    for target in ['objs', 'attrs']:
+        name = 'irsg_{}_{}'.format(split, target)
+        __sets[name] = (lambda split=split, target=target: irsg(split, target))
 
 
 def get_imdb(name):
