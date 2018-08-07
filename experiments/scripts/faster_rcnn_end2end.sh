@@ -33,7 +33,7 @@ case $DATASET in
     TRAIN_IMDB="irsg_train_attrs"
     TEST_IMDB="irsg_val_attrs"
     PT_DIR="irsg_attrs"
-    ITERS=100
+    ITERS=70000
     ;;
   pascal_voc)
     TRAIN_IMDB="voc_2007_trainval"
