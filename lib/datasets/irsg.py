@@ -74,6 +74,7 @@ class irsg(imdb):
             print('{} gt roidb loaded from {}'.format(self.name, cache_file))
             return roidb
 
+        self._load_annotation(0)
         gt_roidb = [self._load_annotation(index)
                     for index in self.image_index]
         with open(cache_file, 'wb') as fid:
@@ -118,8 +119,13 @@ class irsg(imdb):
     def _filter_annotations(self, annotations):
         result = []
         for entry in annotations:
-            entry['objects'] = [obj for obj in entry['objects']
-                                if obj['names'][0] in self._classes]
+            if self.obj_attr_type == 'objs':
+                entry['objects'] = [obj for obj in entry['objects']
+                                    if obj['names'][0] in self._classes]
+            else:
+                for obj in entry['objects']:
+                    obj['attributes'] = [attr for attr in obj['attributes']
+                                         if attr['attribute'] in self._classes]
         return annotations
 
     def _index_to_data(self, index):
@@ -155,20 +161,32 @@ class irsg(imdb):
 
     def _load_annotation(self, index):
         objs = self.annotations[index]['objects']
+        if self.obj_attr_type == 'objs':
+            gt_class_list = [obj['names'][0] for obj in objs]
+            bbox_list = [obj['bbox'] for obj in objs]
+        elif self.obj_attr_type == 'attrs':
+            gt_class_list = []
+            bbox_list = []
+            for obj in objs:
+                for attr in obj['attributes']:
+                    gt_class_list.append(attr['attribute'])       
+                    bbox_list.append(obj['bbox'])
+        else:
+            raise ValueError('invalid obj/attr type \'{}\''
+			     .format(self.obj_attr_type))
+        
         image_size = (self.annotations[index]['width'],
                       self.annotations[index]['height'])
-        boxes = np.zeros((len(objs), 4), dtype=np.uint16)
-        gt_classes = np.zeros(len(objs), dtype=np.int32)
-        overlaps = np.zeros((len(objs), self.num_classes), dtype=np.float32)
-        for i, obj in enumerate(objs):
-            x1 = np.clip(obj['bbox']['x'], a_min=0.0, a_max=image_size[0] - 1)
-            y1 = np.clip(obj['bbox']['y'], a_min=0.0, a_max=image_size[1] - 1)
-            x2 = np.clip(obj['bbox']['x'] + obj['bbox']['w'], 
-                         a_min=0.0, a_max=image_size[0] - 1)
-            y2 = np.clip(obj['bbox']['y'] + obj['bbox']['h'],
-                         a_min=0.0, a_max=image_size[1] - 1)
+        boxes = np.zeros((len(bbox_list), 4), dtype=np.uint16)
+        gt_classes = np.zeros(len(gt_class_list), dtype=np.int32)
+        overlaps = np.zeros((len(gt_class_list), self.num_classes), dtype=np.float32)
+        for i, (class_name, bbox) in enumerate(zip(gt_class_list, bbox_list)):
+            x1 = np.clip(bbox['x'], a_min=0.0, a_max=image_size[0] - 1)
+            y1 = np.clip(bbox['y'], a_min=0.0, a_max=image_size[1] - 1)
+            x2 = np.clip(bbox['x'] + bbox['w'], a_min=0.0, a_max=image_size[0] - 1)
+            y2 = np.clip(bbox['y'] + bbox['h'], a_min=0.0, a_max=image_size[1] - 1)
             boxes[i, :] = [x1, y1, x2, y2]
-            obj_class = self._class_to_ind[obj['names'][0]]
+            obj_class = self._class_to_ind[class_name]
             gt_classes[i] = obj_class
             overlaps[i, obj_class] = 1.0
 

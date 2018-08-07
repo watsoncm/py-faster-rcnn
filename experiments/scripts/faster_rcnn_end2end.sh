@@ -23,10 +23,16 @@ EXTRA_ARGS=${array[@]:3:$len}
 EXTRA_ARGS_SLUG=${EXTRA_ARGS// /_}
 
 case $DATASET in
-  irsg)
+  irsg_objs)
     TRAIN_IMDB="irsg_train_objs"
     TEST_IMDB="irsg_val_objs"
-    PT_DIR="irsg"
+    PT_DIR="irsg_objs"
+    ITERS=70000
+    ;;
+  irsg_attrs)
+    TRAIN_IMDB="irsg_train_attrs"
+    TEST_IMDB="irsg_val_attrs"
+    PT_DIR="irsg_attrs"
     ITERS=100
     ;;
   pascal_voc)
