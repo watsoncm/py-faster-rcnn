@@ -13,9 +13,10 @@ from fast_rcnn.config import cfg
 
 class irsg(imdb):
     def __init__(self, image_set, obj_attr_type, devkit_path=None,
-                 aux_path=None, use_attrs=False):
+                 aux_path=None, use_attrs=False, is_smol=False):
         self.obj_attr_type = obj_attr_type
-        imdb.__init__(self, 'IRSG_{}_{}'.format(image_set, self.obj_attr_type))
+        imdb.__init__(self, 'IRSG_{}_{}{}'.format(image_set, self.obj_attr_type,
+                                                  '_smol' if is_smol else ''))
         self._image_set = image_set
         self._devkit_path = (self._get_default_path()
                              if devkit_path is None else devkit_path)
@@ -25,7 +26,7 @@ class irsg(imdb):
                                              'sg_train_images')
         self.test_image_path = os.path.join(self._devkit_path,
                                             'sg_test_images')
-        self._classes = self._load_classes()
+        self._classes = self._load_classes(is_smol=is_smol)
         self._class_to_ind = dict(zip(self.classes, range(self.num_classes)))
         self._roidb_handler = self.rpn_roidb
         train_anno_path = os.path.join(self._devkit_path,
@@ -139,8 +140,9 @@ class irsg(imdb):
             annos = self.test_annotations
         return annos, index, image_dir
 
-    def _load_classes(self):
-        target_name = '{}.txt'.format(self.obj_attr_type)
+    def _load_classes(self, is_smol=False):
+        target_name = '{}{}.txt'.format(self.obj_attr_type,
+                                        '_smol' if is_smol else '')
         with open(os.path.join(self._aux_path, target_name)) as f:
             return ['__background__'] + f.read().splitlines()
 

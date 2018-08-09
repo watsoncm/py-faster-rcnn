@@ -36,6 +36,8 @@ for split in ['train', 'val', 'test']:
     for target in ['objs', 'attrs']:
         name = 'irsg_{}_{}'.format(split, target)
         __sets[name] = (lambda split=split, target=target: irsg(split, target))
+	__sets[name + '_smol'] = (lambda split=split, target=target: 
+                                  irsg(split, target, is_smol=True))
 
 
 def get_imdb(name):
