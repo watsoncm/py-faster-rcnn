@@ -11,50 +11,36 @@ from datasets.imdb import imdb
 from fast_rcnn.config import cfg
 
 
-class irsg(imdb):
-    def __init__(self, image_set, obj_attr_type, devkit_path=None,
-                 aux_path=None, use_attrs=False, is_smol=False):
-        self.obj_attr_type = obj_attr_type
-        imdb.__init__(self, 'IRSG_{}_{}{}'.format(image_set, self.obj_attr_type,
-                                                  '_smol' if is_smol else ''))
+class glasses(imdb):
+    def __init__(self, image_set, devkit_path=None, sg_path=None):
+        imdb.__init__(self, 'person_wearing_glasses_{}'.format(image_set))
         self._image_set = image_set
         self._devkit_path = (self._get_default_path()
                              if devkit_path is None else devkit_path)
-        self._aux_path = (self._get_default_aux_path()
-                            if aux_path is None else aux_path)
-        self.train_image_path = os.path.join(self._devkit_path,
-                                             'sg_train_images')
-        self.test_image_path = os.path.join(self._devkit_path,
-                                            'sg_test_images')
-        self._classes = self._load_classes(is_smol=is_smol)
+        self._sg_path = (self._get_default_sg_path()
+                         if sg_path is None else sg_path)
+        self._classes = ['__background__', 'person', 'glasses']
         self._class_to_ind = dict(zip(self.classes, range(self.num_classes)))
         self._roidb_handler = self.rpn_roidb
-        train_anno_path = os.path.join(self._devkit_path,
-                                       'sg_train_annotations.json')
-        test_anno_path = os.path.join(self._devkit_path,
+ 
+        train_anno_path = os.path.join(self._devkit_path, '*.json')
+        self.train_annotations = []
+        for name in sorted(glob.glob(train_anno_path)):
+            with open(name) as f:
+                self.train_annotations.append(json.load(f))
+
+        test_anno_path = os.path.join(self._sg_path,
                                       'sg_test_annotations.json')
-
-        with open(train_anno_path) as f:
-            print('loading train annotations...')
-            self.train_annotations = self._filter_annotations(json.load(f))
         with open(test_anno_path) as f:
-            print('loading test annotations...')
-            self.test_annotations = self._filter_annotations(json.load(f))
+            self.test_annotations = _filter_annotations(json.load(f))
 
-        train_size = len(self.train_annotations)
-        test_size = len(self.test_annotations)
+        self.train_size = len(self.train_annotations)
+        self.test_size = len(self.test_annotations)
+        self.data_size = self.train_size + self.test_size
         if image_set is 'train':
-            self.annotations = self.train_annotations
-            self.image_path = self.train_image_path
-            self._image_index = self._get_image_index('train')
-        elif image_set is 'val':
-            self.annotations = self.train_annotations
-            self.image_path = self.train_image_path
-            self._image_index = self._get_image_index('val')
+            self._image_index = range(self.train_size)
         elif image_set is 'test':
-            self.annotations = self.test_annotations
-            self.image_path = self.test_image_path
-            self._image_index = self._get_image_index('test')
+            self._image_index = range(self.train_size, self.data_size)
         else:
             error_format = ('invalid image set name \'{}\': only'
                             '\'train\' and \'test\' are allowed')
@@ -64,8 +50,14 @@ class irsg(imdb):
         return self.image_path_from_index(self.image_index[i])
 
     def image_path_from_index(self, index):
-        annos, index, image_dir = self._index_to_data(index)
-        return os.path.join(image_dir, annos[index]['filename'])
+        if 0 <= index < self.train_size:
+            anno_name = self.train_annotations[index]
+        elif self.train_size <= index < self.data_size:
+            anno_name = self.test_annotations[index - len(self.train_size)]
+        else:
+            raise ValueError('index must be between 0 and {}'
+                             .format(self.data_size - 1))
+        return anno_name.replace('.json', '.jpg')
 
     def gt_roidb(self):
         cache_file = os.path.join(self.cache_path, self.name + '_gt_roidb.pkl')
@@ -108,42 +100,6 @@ class irsg(imdb):
     def _get_default_path(self):
         return os.path.join(cfg.DATA_DIR, 'sg_dataset')
 
-    def _get_default_aux_path(self):
-        return os.path.join(cfg.DATA_DIR, 'sg_aux')
-
-    def _get_image_index(self, split):
-        split_name = os.path.join(self._aux_path, '{}.txt'.format(split))
-        with open(split_name) as f:
-            return [int(line) for line in f.read().splitlines()]
-
-    def _filter_annotations(self, annotations):
-        for entry in annotations:
-            if self.obj_attr_type == 'objs':
-                entry['objects'] = [obj for obj in entry['objects']
-                                    if obj['names'][0] in self._classes]
-            else:
-                for obj in entry['objects']:
-                    obj['attributes'] = [attr for attr in obj['attributes']
-                                         if attr['attribute'] in self._classes]
-        return annotations
-
-    def _index_to_data(self, index):
-        num_train = len(self.train_annotations)
-        if index < num_train:
-            image_dir = self.train_image_path
-            annos = self.train_annotations
-        else:
-            index -= num_train
-            image_dir = self.test_image_path
-            annos = self.test_annotations
-        return annos, index, image_dir
-
-    def _load_classes(self, is_smol=False):
-        target_name = '{}{}.txt'.format(self.obj_attr_type,
-                                        '_smol' if is_smol else '')
-        with open(os.path.join(self._aux_path, target_name)) as f:
-            return ['__background__'] + f.read().splitlines()
-
     def _load_selective_search_roidb(self, gt_roidb):
         filename = os.path.abspath(os.path.join(cfg.DATA_DIR,
                                                 'selective_search_data',
@@ -159,32 +115,35 @@ class irsg(imdb):
             box_list.append(boxes)
         return self.create_roidb_from_box_list(box_list, gt_roidb)
 
+     def _filter_annotations(self, annotations):
+        for entry in annotations:
+            entry['objects'] = [obj for obj in entry['objects']
+                                if obj['names'][0] in self._classes]
+        return annotations
+
+
     def _load_annotation(self, index):
-        objs = self.annotations[index]['objects']
-        if self.obj_attr_type == 'objs':
-            gt_class_list = [obj['names'][0] for obj in objs]
-            bbox_list = [obj['bbox'] for obj in objs]
-        elif self.obj_attr_type == 'attrs':
-            gt_class_list = []
-            bbox_list = []
-            for obj in objs:
-                for attr in obj['attributes']:
-                    gt_class_list.append(attr['attribute'])       
-                    bbox_list.append(obj['bbox'])
-        else:
-            raise ValueError('invalid obj/attr type \'{}\''
-			     .format(self.obj_attr_type))
-        
-        image_size = (self.annotations[index]['width'],
-                      self.annotations[index]['height'])
+        if 0 <= index < self.train_size:
+            anno = self.train_annotations[index]
+            gt_class_list = [obj['desc'] for obj in anno['objects']]
+            bbox_list = [obj['box_xywh'] for obj in anno['objects']]
+            image_size = (anno['im_w'], anno['im_h'])
+        elif self.train_size <= index < self.data_size:
+            anno = self.test_annotations[index - self.train_size]
+            gt_class_list = [obj['names'][0] for obj in anno['objects']]
+            bbox_list = [np.array(obj['bbox']['x'], obj['bbox']['y'],
+                                  obj['bbox']['w'], obj['bbox']['h'])
+                         for obj in anno['objects']]
+            image_size = (anno['width'], anno['height'])
+
         boxes = np.zeros((len(bbox_list), 4), dtype=np.uint16)
         gt_classes = np.zeros(len(gt_class_list), dtype=np.int32)
         overlaps = np.zeros((len(gt_class_list), self.num_classes), dtype=np.float32)
         for i, (class_name, bbox) in enumerate(zip(gt_class_list, bbox_list)):
-            x1 = np.clip(bbox['x'], a_min=0.0, a_max=image_size[0] - 1)
-            y1 = np.clip(bbox['y'], a_min=0.0, a_max=image_size[1] - 1)
-            x2 = np.clip(bbox['x'] + bbox['w'], a_min=0.0, a_max=image_size[0] - 1)
-            y2 = np.clip(bbox['y'] + bbox['h'], a_min=0.0, a_max=image_size[1] - 1)
+            x1 = np.clip(bbox[0], a_min=0.0, a_max=image_size[0] - 1)
+            y1 = np.clip(bbox[1], a_min=0.0, a_max=image_size[1] - 1)
+            x2 = np.clip(bbox[0] + bbox[2], a_min=0.0, a_max=image_size[0] - 1)
+            y2 = np.clip(bbox[1] + bbox[3], a_min=0.0, a_max=image_size[1] - 1)
             boxes[i, :] = [x1, y1, x2, y2]
             obj_class = self._class_to_ind[class_name]
             gt_classes[i] = obj_class
