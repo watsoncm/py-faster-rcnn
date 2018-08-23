@@ -1,3 +1,4 @@
+import glob
 import os
 import json
 import pickle as pickle
@@ -25,14 +26,16 @@ class glasses(imdb):
  
         train_anno_path = os.path.join(self._devkit_path, '*.json')
         self.train_annotations = []
-        for name in sorted(glob.glob(train_anno_path)):
-            with open(name) as f:
-                self.train_annotations.append(json.load(f))
+        for path in sorted(glob.glob(train_anno_path)):
+            with open(path) as f:
+                anno = json.load(f)
+                anno['filename'] = path.replace('.json', '.jpg')
+                self.train_annotations.append(anno)
 
         test_anno_path = os.path.join(self._sg_path,
                                       'sg_test_annotations.json')
         with open(test_anno_path) as f:
-            self.test_annotations = _filter_annotations(json.load(f))
+            self.test_annotations = self._filter_annotations(json.load(f))
 
         self.train_size = len(self.train_annotations)
         self.test_size = len(self.test_annotations)
@@ -51,13 +54,15 @@ class glasses(imdb):
 
     def image_path_from_index(self, index):
         if 0 <= index < self.train_size:
-            anno_name = self.train_annotations[index]
+            anno = self.train_annotations[index]
+            image_dir = self._devkit_path
         elif self.train_size <= index < self.data_size:
-            anno_name = self.test_annotations[index - len(self.train_size)]
+            anno = self.test_annotations[index - self.train_size]
+            image_dir = os.path.join(self._sg_path, 'sg_test_images')
         else:
             raise ValueError('index must be between 0 and {}'
                              .format(self.data_size - 1))
-        return anno_name.replace('.json', '.jpg')
+        return os.path.join(image_dir, anno['filename'])
 
     def gt_roidb(self):
         cache_file = os.path.join(self.cache_path, self.name + '_gt_roidb.pkl')
@@ -98,6 +103,9 @@ class glasses(imdb):
         return self.create_roidb_from_box_list(box_list, None)
 
     def _get_default_path(self):
+        return os.path.join(cfg.DATA_DIR, 'situate', 'person-wearing-glasses')
+
+    def _get_default_sg_path(self):
         return os.path.join(cfg.DATA_DIR, 'sg_dataset')
 
     def _load_selective_search_roidb(self, gt_roidb):
@@ -115,7 +123,7 @@ class glasses(imdb):
             box_list.append(boxes)
         return self.create_roidb_from_box_list(box_list, gt_roidb)
 
-     def _filter_annotations(self, annotations):
+    def _filter_annotations(self, annotations):
         for entry in annotations:
             entry['objects'] = [obj for obj in entry['objects']
                                 if obj['names'][0] in self._classes]
@@ -159,19 +167,24 @@ class glasses(imdb):
         for class_index, class_name in enumerate(self.classes):
             if class_name == '__background__':
                 continue
-            print('Writing {} results file'.format(class_name))
-            output_name = '{}_results.csv'.format(class_name)
-            output_path = os.path.join(output_dir, output_name)
-            with open(output_path, 'w') as f:
-                for image_index_index, index in enumerate(self.image_index):
-                    dets = all_boxes[class_index][image_index_index]
+            class_dir = os.path.join(output_dir, class_name)
+            if not os.path.exists(class_dir):
+                os.makedirs(class_dir)
+            print('Writing {} results'.format(class_name))
+            for i, index in enumerate(self.image_index):
+                image_name = os.path.basename(self.image_path_at(i))
+                image_part = os.path.splitext(image_name)[0]
+                output_name = 'results_{}.csv'.format(image_part)
+                output_path = os.path.join(class_dir, output_name)
+                with open(output_path, 'w') as f:
+                    dets = all_boxes[class_index][i]
                     if dets == []:
                         continue
                     for k in xrange(dets.shape[0]):
-                        f.write('{} {:.6f} {:.1f} {:.1f} {:.1f} {:.1f}\n'.
-                                format(index, dets[k, -1],
-                                       dets[k, 0], dets[k, 1],
-                                       dets[k, 2], dets[k, 3]))
+                        det = dets[k]
+                        f.write('{:.0f},{:.0f},{:.0f},{:.0f},{:.6f}\n'.
+                                format(det[0], det[1], det[2] - det[0], 
+                                       det[3] - det[1], det[4]))
 
     def competition_mode(self, on):
         pass  # guess we're not competing today

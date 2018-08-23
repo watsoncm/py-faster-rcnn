@@ -210,7 +210,7 @@ class irsg(imdb):
                         continue
                     for k in xrange(dets.shape[0]):
                         f.write('{} {:.6f} {:.1f} {:.1f} {:.1f} {:.1f}\n'.
-                                format(index, dets[k, -1],
+                                format(image_index_index, dets[k, -1],
                                        dets[k, 0], dets[k, 1],
                                        dets[k, 2], dets[k, 3]))
 

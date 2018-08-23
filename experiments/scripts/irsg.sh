@@ -47,7 +47,13 @@ case $DATASET in
     PT_DIR="irsg_attrs_smol"
     ITERS=70000
     ;;
- *)
+  glasses)
+    TRAIN_IMDB="glasses_train"
+    TEST_IMDB="glasses_test"
+    PT_DIR="glasses"
+    ITERS=70000
+    ;;
+  *)
     echo "No dataset given"
     exit
     ;;

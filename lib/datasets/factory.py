@@ -11,6 +11,7 @@
 from datasets.pascal_voc import pascal_voc
 from datasets.coco import coco
 from datasets.irsg import irsg
+from datasets.glasses import glasses 
 
 __sets = {}
 
@@ -38,6 +39,10 @@ for split in ['train', 'val', 'test']:
         __sets[name] = (lambda split=split, target=target: irsg(split, target))
 	__sets[name + '_smol'] = (lambda split=split, target=target: 
                                   irsg(split, target, is_smol=True))
+
+for split in ['train', 'test']:
+    name = 'glasses_{}'.format(split)
+    __sets[name] = (lambda split=split: glasses(split))
 
 
 def get_imdb(name):
