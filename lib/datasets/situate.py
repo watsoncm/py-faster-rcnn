@@ -14,18 +14,19 @@ from fast_rcnn.config import cfg
 
 class situate(imdb):
     def __init__(self, image_set, classes, dataset_name):
-        imdb.__init__(self, '{}_{}'.format(dataset_name, image_set))
+        imdb.__init__(self, '{}_{}'.format(dataset_name.replace('-', '_'), 
+					   image_set))
         self._image_set = image_set
-        self._train_path = os.path.join(cfg, 'situate', dataset_name)
+        self._train_path = os.path.join(cfg.DATA_DIR, 'situate', dataset_name)
         self._pos_path = os.path.join(
-            cfg, 'situate', '{}-test'.format(dataset_name))
+            cfg.DATA_DIR, 'situate', '{}-test'.format(dataset_name))
         self._neg_path = os.path.join(
-            cfg, 'situate', '{}-negative'.format(dataset_name))
-        self._classes = ['__background__'] + classes
+            cfg.DATA_DIR, 'situate', '{}-negative'.format(dataset_name))
+        self._classes = ['__background__'] + list(classes)
         self._class_to_ind = dict(zip(self.classes, range(self.num_classes)))
         self._roidb_handler = self.rpn_roidb
  
-        train_anno_path = os.path.join(self._devkit_path, '*.json')
+        train_anno_path = os.path.join(self._train_path, '*.json')
         self.train_annotations = []
         for path in sorted(glob.glob(train_anno_path)):
             with open(path) as f:
@@ -33,14 +34,17 @@ class situate(imdb):
                 anno['filename'] = path.replace('.json', '.jpg')
                 self.train_annotations.append(anno)
 
-        test_anno_path = os.path.join(self._sg_path,
-                                      'sg_test_annotations.json')
-        with open(test_anno_path) as f:
-            self.test_annotations = self._filter_annotations(json.load(f))
+        pos_anno_path = os.path.join(self._pos_path, 'annotations.json')
+        neg_anno_path = os.path.join(self._neg_path, 'annotations.json')
+        with open(pos_anno_path) as f:
+            self.pos_annotations = self._filter_annotations(json.load(f))
+        with open(neg_anno_path) as f:
+            self.neg_annotations = self._filter_annotations(json.load(f))
 
         self.train_size = len(self.train_annotations)
-        self.test_size = len(self.test_annotations)
-        self.data_size = self.train_size + self.test_size
+        self.pos_size = len(self.pos_annotations)
+        self.neg_size = len(self.neg_annotations)
+        self.data_size = self.train_size + self.pos_size + self.neg_size
         if image_set is 'train':
             self._image_index = range(self.train_size)
         elif image_set is 'test':
@@ -56,10 +60,14 @@ class situate(imdb):
     def image_path_from_index(self, index):
         if 0 <= index < self.train_size:
             anno = self.train_annotations[index]
-            image_dir = self._devkit_path
-        elif self.train_size <= index < self.data_size:
-            anno = self.test_annotations[index - self.train_size]
-            image_dir = os.path.join(self._sg_path, 'sg_test_images')
+            image_dir = self._train_path
+        elif self.train_size <= index < self.train_size + self.pos_size:
+            anno = self.pos_annotations[index - self.train_size]
+            image_dir = self._pos_path
+        elif self.train_size + self.pos_size <= index < self.data_size:
+            anno = self.neg_annotations[index - (self.train_size + 
+                                                 self.pos_size)]
+            image_dir = self._neg_path
         else:
             raise ValueError('index must be between 0 and {}'
                              .format(self.data_size - 1))
@@ -102,12 +110,6 @@ class situate(imdb):
         with open(filename, 'rb') as f:
             box_list = pickle.load(f)
         return self.create_roidb_from_box_list(box_list, None)
-
-    def _get_default_path(self):
-        return os.path.join(cfg.DATA_DIR, 'situate', 'person-wearing-glasses')
-
-    def _get_default_sg_path(self):
-        return os.path.join(cfg.DATA_DIR, 'sg_dataset')
 
     def _load_selective_search_roidb(self, gt_roidb):
         filename = os.path.abspath(os.path.join(cfg.DATA_DIR,

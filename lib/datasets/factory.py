@@ -12,6 +12,7 @@ from datasets.pascal_voc import pascal_voc
 from datasets.coco import coco
 from datasets.irsg import irsg
 from datasets.glasses import glasses 
+from datasets.situate import situate 
 
 __sets = {}
 
@@ -44,6 +45,18 @@ for split in ['train', 'test']:
     name = 'glasses_{}'.format(split)
     __sets[name] = (lambda split=split: glasses(split))
 
+
+situate_names = ('umbrella', 'kite')
+situate_dataset_names = ('person-holding-umbrella', 'person-flying-kite')
+situate_classes = (('person', 'umbrella'), ('person', 'kite'))
+
+for split in ['train', 'test']:
+    for name, dataset_name, classes in zip(
+        situate_names, situate_dataset_names, situate_classes):
+        full_name = '{}_{}'.format(name, split)
+        __sets[full_name] = (lambda split=split: situate(
+            split, classes, dataset_name))
+       
 
 def get_imdb(name):
     """Get an imdb (image database) by name."""
